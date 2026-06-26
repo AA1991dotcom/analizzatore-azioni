@@ -105,11 +105,11 @@ def segnale_verdetto(f: Fibonacci | None) -> tuple[float, str]:
     segno = 1.0 if f.rialzista else -1.0  # un ritracc. favorevole spinge nella direzione del trend
 
     if 0.382 <= fr <= 0.618:
-        return 0.8 * segno, f"Fibonacci: prezzo sul ritracciamento {fr*100:.0f}% (zona d'ingresso a favore di trend)."
+        return 0.8 * segno, f"dopo l'ultimo grande movimento il prezzo è tornato indietro di circa il {fr*100:.0f}%, una zona da cui spesso la tendenza riparte."
     if 0.618 < fr <= 0.786:
-        return 0.3 * segno, f"Fibonacci: ritracciamento profondo {fr*100:.0f}% (ingresso possibile ma piu' rischioso)."
+        return 0.3 * segno, f"il prezzo è tornato indietro parecchio ({fr*100:.0f}% dell'ultimo movimento): può ripartire, ma è più rischioso."
     if fr > 0.786:
-        return -0.6 * segno, f"Fibonacci: ritracciamento {fr*100:.0f}% oltre il 78.6% (trend in pericolo)."
+        return -0.6 * segno, f"il prezzo ha quasi annullato l'ultimo movimento ({fr*100:.0f}%): la tendenza è a rischio."
     if fr < 0:
-        return -0.3 * segno, "Fibonacci: prezzo in zona estensioni (esteso, possibile presa di profitto)."
-    return 0.1 * segno, f"Fibonacci: ritracciamento lieve {fr*100:.0f}% (trend intatto)."
+        return -0.3 * segno, "il prezzo ha superato i massimi dell'ultimo movimento: è molto 'tirato', possibile presa di profitto."
+    return 0.1 * segno, f"il prezzo è sceso solo di poco ({fr*100:.0f}%) dopo l'ultimo movimento: tendenza ancora intatta."

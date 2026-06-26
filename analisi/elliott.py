@@ -38,6 +38,8 @@ class Conteggio:
     recente: bool = False           # include l'ultimo pivot rilevato?
     scala: float = 0.0              # soglia ZigZag che ha prodotto il conteggio
     span: float = 0.0              # ampiezza di prezzo del conteggio (grado dell'onda)
+    in_corso: bool = False          # impulso ancora in svolgimento (onda 5 in corso)?
+    corr_rialzista: bool = False    # solo per correzioni A-B-C: correzione al rialzo?
 
 
 # --------------------------------------------------------------------------- #
@@ -254,15 +256,21 @@ def _conteggi_da_pivot(pivots, close, scala) -> list[Conteggio]:
             tipo = "impulso_rialzista" if rialzista else "impulso_ribassista"
             conf = _confidenza_impulso(det)
             recente = sub_i[-1] == ultimo_pivot
-            verso = "ribasso" if rialzista else "rimbalzo"
+            if recente:
+                if rialzista:
+                    nota = ("Sembra completato un ciclo di salita in 5 onde: la salita è "
+                            "matura e potrebbe seguire una correzione (discesa).")
+                else:
+                    nota = ("Sembra completato un ciclo di discesa in 5 onde: la discesa è "
+                            "matura e potrebbe seguire un rimbalzo.")
+            else:
+                nota = "Si riconosce un ciclo completo in 5 onde nel passato (non più attuale)."
             out.append(Conteggio(
                 tipo=tipo, indici=sub_i, prezzi=sub_p,
-                etichette=["0", "1", "2", "3", "4", "5"], confidenza=conf,
-                onda_corrente=(
-                    f"Onda 5 completata: impulso maturo, possibile {verso}."
-                    if recente else "Impulso completo (storico)."),
+                etichette=["", "1", "2", "3", "4", "5"], confidenza=conf,
+                onda_corrente=nota,
                 target=_target_impulso_completo(sub_p, rialzista) if recente else [],
-                dettagli=det, recente=recente, scala=scala, span=span(sub_p)))
+                dettagli=det, recente=recente, scala=scala, span=span(sub_p), in_corso=False))
 
     # --- Impulsi in corso: noti 0..4 (onda 5 in svolgimento) ---
     for s in range(0, len(pivots) - 4):
@@ -277,13 +285,15 @@ def _conteggi_da_pivot(pivots, close, scala) -> list[Conteggio]:
                 continue
             tipo = "impulso_rialzista" if rialzista else "impulso_ribassista"
             conf = max(0, _confidenza_impulso(det) - 15)
-            direzione = "rialzo" if rialzista else "ribasso"
+            salita = "salita" if rialzista else "discesa"
+            nota = (f"Siamo probabilmente nell'ultima onda (la 5ª) di una {salita}: "
+                    f"la tendenza è ancora viva ma in fase avanzata.")
             out.append(Conteggio(
                 tipo=tipo, indici=sub_i, prezzi=sub_p,
-                etichette=["0", "1", "2", "3", "4"], confidenza=conf,
-                onda_corrente=f"Onda 5 in corso ({direzione}): trend ancora attivo ma maturo.",
+                etichette=["", "1", "2", "3", "4"], confidenza=conf,
+                onda_corrente=nota,
                 target=_target_onda5(sub_p, rialzista),
-                dettagli=det, recente=True, scala=scala, span=span(sub_p)))
+                dettagli=det, recente=True, scala=scala, span=span(sub_p), in_corso=True))
 
     # --- Correzioni A-B-C recenti (finestre di 4 pivot) ---
     for s in range(0, len(pivots) - 3):
@@ -296,12 +306,14 @@ def _conteggi_da_pivot(pivots, close, scala) -> list[Conteggio]:
             if not ok:
                 continue
             conf = int(round(100 * 0.5 * (_vicinanza(det["c/a"], 1.0) + _vicinanza(det["b/a"], 0.5))))
-            direzione = "rialzista" if rialzista else "ribassista"
+            nota = ("Sembra completarsi una correzione in 3 onde (A-B-C): "
+                    "spesso dopo riparte la tendenza precedente.")
             out.append(Conteggio(
                 tipo="correzione_abc", indici=sub_i, prezzi=sub_p,
-                etichette=["0", "A", "B", "C"], confidenza=conf,
-                onda_corrente=f"Possibile fine correzione A-B-C ({direzione}): possibile ripresa del trend.",
-                target=[], dettagli=det, recente=True, scala=scala, span=span(sub_p)))
+                etichette=["", "A", "B", "C"], confidenza=conf,
+                onda_corrente=nota,
+                target=[], dettagli=det, recente=True, scala=scala, span=span(sub_p),
+                corr_rialzista=rialzista))
 
     return out
 

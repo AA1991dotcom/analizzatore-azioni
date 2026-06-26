@@ -73,8 +73,10 @@ def grafico_semplice(df, indic, ell, fib):
         fig.add_trace(go.Scatter(
             x=_date(df, m.indici), y=m.prezzi, mode="lines+markers+text",
             text=m.etichette, textposition="top center",
-            line=dict(color="black", width=2, dash="dot"),
-            marker=dict(size=9, color="black"), name="Elliott"))
+            textfont=dict(size=15, color="#0b3d91"),
+            line=dict(color="#0b3d91", width=2.5),
+            marker=dict(size=12, color="#0b3d91", line=dict(width=1.5, color="white")),
+            name="Onde di Elliott"))
     if fib is not None:
         for et, p in fib.ritracciamenti.items():
             fig.add_hline(y=p, line=dict(color="rgba(180,120,0,0.45)", width=0.7, dash="dot"),
@@ -105,8 +107,11 @@ def grafico_avanzato(df, indic, ell, fib):
     if ell["stato"] == "ok" and ell["migliore"] is not None:
         m = ell["migliore"]
         fig.add_trace(go.Scatter(x=_date(df, m.indici), y=m.prezzi, mode="lines+markers+text",
-                                 text=m.etichette, textposition="top center", line=dict(color="black", width=2, dash="dot"),
-                                 marker=dict(size=9, color="black"), name="Elliott"), row=1, col=1)
+                                 text=m.etichette, textposition="top center",
+                                 textfont=dict(size=15, color="#0b3d91"),
+                                 line=dict(color="#0b3d91", width=2.5),
+                                 marker=dict(size=12, color="#0b3d91", line=dict(width=1.5, color="white")),
+                                 name="Onde di Elliott"), row=1, col=1)
         for nome_t, p in m.target:
             fig.add_hline(y=p, line=dict(color="purple", width=1, dash="dash"),
                           annotation_text=nome_t, annotation_position="right", row=1, col=1)
@@ -165,6 +170,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+st.info(f"**In parole semplici:** {v.riassunto}")
+
 tab_sintesi, tab_grafico, tab_dettagli = st.tabs(["📊 Sintesi", "📈 Grafico completo", "🌊 Elliott & Fibonacci"])
 
 # ---- Tab 1: Sintesi (semplice) ----
@@ -172,6 +179,11 @@ with tab_sintesi:
     col_g, col_t = st.columns([3, 2])
     with col_g:
         st.plotly_chart(grafico_semplice(df, indic, ell, fib), use_container_width=True)
+        st.caption(
+            "Come leggere il grafico — i numeri **1·2·3·4·5** (o **A·B·C**) sono le **onde di Elliott**, "
+            "cioè le fasi del movimento del prezzo. Le linee tratteggiate **arancioni** sono i "
+            "**livelli di Fibonacci**: i 'gradini' su cui il prezzo tende a fermarsi o ripartire."
+        )
     with col_t:
         st.subheader("Perché")
         for m in v.motivazioni:
@@ -183,21 +195,43 @@ with tab_grafico:
 
 # ---- Tab 3: dettagli Elliott + Fibonacci ----
 with tab_dettagli:
-    st.subheader("Onde di Elliott")
-    st.write(ell["messaggio"])
-    if ell["stato"] == "ok":
-        scale_txt = ", ".join(f"{s*100:.1f}%" for s in ell["scale"])
-        st.caption(f"Scale ZigZag analizzate: {scale_txt}")
-        for i, c in enumerate(ell["conteggi"][:5], start=1):
-            stella = "⭐ " if c is ell["migliore"] else ""
-            with st.expander(f"{stella}Conteggio {i}: {c.tipo} — confidenza {c.confidenza}%"):
-                st.write(c.onda_corrente)
-                if c.dettagli:
-                    st.write({k: round(val, 3) for k, val in c.dettagli.items()})
-                if c.target:
-                    st.write("Target:", {n: round(p, 2) for n, p in c.target})
+    with st.expander("❓ Cosa sono le onde di Elliott e i livelli di Fibonacci?"):
+        st.markdown(
+            "**Onde di Elliott** — l'idea è che i prezzi si muovano per *fasi* ricorrenti: "
+            "5 onde nella direzione della tendenza (numerate **1·2·3·4·5**) seguite da una "
+            "correzione in 3 onde (**A·B·C**). Sapere *in che fase siamo* aiuta a capire se "
+            "la tendenza è all'inizio (spesso buon momento) o ormai matura (più rischioso).\n\n"
+            "**Livelli di Fibonacci** — dopo un movimento, il prezzo spesso torna indietro di "
+            "una quota tipica (38%, 50%, 62%…) prima di riprendere. Quei livelli fanno da "
+            "'gradini' di supporto o resistenza.\n\n"
+            "⚠️ Sono strumenti *interpretativi*: qui sono calcolati con regole rigorose, ma non "
+            "sono previsioni certe."
+        )
+
+    st.subheader("🌊 In che fase siamo")
+    if ell["stato"] == "ok" and ell["migliore"] is not None and ell["migliore"].recente:
+        st.success(ell["migliore"].onda_corrente)
+    elif ell["stato"] == "ok" and ell["migliore"] is not None:
+        st.info(
+            "Al momento non c'è una fase *attuale* leggibile con certezza. "
+            "La struttura più chiara riconoscibile è storica: " + ell["migliore"].onda_corrente
+        )
     else:
-        st.info("Coerente con 'vietato improvvisare': nessun conteggio viene forzato.")
+        st.warning(
+            "Le onde non sono leggibili con certezza in questo momento: "
+            "il programma preferisce non forzare un'interpretazione."
+        )
+
+    if ell["stato"] == "ok":
+        with st.expander("Conteggi alternativi e dettagli numerici"):
+            scale_txt = ", ".join(f"{s*100:.1f}%" for s in ell["scale"])
+            st.caption(f"Scale di lettura analizzate: {scale_txt}")
+            for i, c in enumerate(ell["conteggi"][:5], start=1):
+                stella = "⭐ " if c is ell["migliore"] else ""
+                st.markdown(f"{stella}**Conteggio {i}** ({c.tipo}) — affidabilità {c.confidenza}%")
+                st.caption(c.onda_corrente)
+                if c.target:
+                    st.write("Possibili target:", {n: round(p, 2) for n, p in c.target})
 
     st.subheader("Livelli di Fibonacci")
     if fib is not None:
@@ -213,5 +247,8 @@ with tab_dettagli:
     else:
         st.info("Swing dominante non determinabile su questo storico.")
 
-    with st.expander("Tutti gli indicatori (ultimi valori)"):
+    with st.expander("🔧 Versione tecnica (per chi conosce l'analisi tecnica)"):
+        for d in v.dettagli_tecnici:
+            st.markdown(f"- {d}")
+        st.caption(f"Punteggio complessivo: {v.punteggio}")
         st.write({k: round(val, 3) for k, val in indic["ultimi"].items()})
