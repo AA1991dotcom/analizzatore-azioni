@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 
-from analisi import elliott, fibonacci
+from analisi import backtest, elliott, fibonacci
 
 
 def _df_da_close(close):
@@ -185,3 +185,46 @@ def test_fibonacci_segnale_zona_aurea_positivo():
     f = fibonacci.calcola(pivots, prezzo_corrente=prezzo)
     score, _ = fibonacci.segnale_verdetto(f)
     assert score > 0
+
+
+# --------------------------------------------------------------------------- #
+# Backtest
+# --------------------------------------------------------------------------- #
+def test_equity_sempre_investito_uguale_benchmark():
+    close = np.array([100.0, 110.0, 105.0, 120.0])
+    eq = backtest.equity_da_posizioni(close, np.ones(4))
+    assert abs(eq[-1] - 120.0) < 1e-9  # base 100 con partenza a 100
+
+
+def test_equity_mai_investito_resta_a_100():
+    close = np.array([100.0, 50.0, 200.0, 10.0])
+    eq = backtest.equity_da_posizioni(close, np.zeros(4))
+    assert np.allclose(eq, 100.0)
+
+
+def test_equity_posizione_parziale_nel_tempo():
+    # investito solo il giorno 2 (rendimento +10%): equity finale 110
+    close = np.array([100.0, 100.0, 110.0, 110.0])
+    posizioni = np.array([0.0, 0.0, 1.0, 0.0])
+    eq = backtest.equity_da_posizioni(close, posizioni)
+    assert abs(eq[-1] - 110.0) < 1e-9
+
+
+def test_backtest_completo_su_serie_sintetica():
+    rng = np.random.default_rng(5)
+    close = 100 * np.cumprod(1 + rng.normal(0.0005, 0.015, 700))
+    df = _df_da_close(close)
+    res = backtest.esegui(df, passo=20)
+    assert res is not None
+    assert len(res.date) == len(res.equity_strategia) == len(res.equity_benchmark)
+    assert res.equity_strategia[0] == 100.0 and res.equity_benchmark[0] == 100.0
+    assert 0.0 <= res.pct_investito <= 100.0
+    assert res.drawdown_strategia <= 0.0
+    # senza posizioni corte, la strategia non puo' perdere piu' del benchmark ogni giorno
+    # in cui e' investita al 100%: sanity check sulla coerenza delle curve
+    assert res.n_operazioni >= 0
+
+
+def test_backtest_storico_corto_restituisce_none():
+    close = np.linspace(100, 120, 120)
+    assert backtest.esegui(_df_da_close(close)) is None

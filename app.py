@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from analisi import dati, elliott, fibonacci, indicatori, verdetto
+from analisi import backtest, dati, elliott, fibonacci, indicatori, verdetto
 
 st.set_page_config(page_title="Analisi azioni", page_icon="📈", layout="wide")
 
@@ -39,6 +39,13 @@ FONT = "system-ui, -apple-system, 'Segoe UI', sans-serif"
 @st.cache_data(ttl=3600, show_spinner=False)
 def _scarica(ticker: str, orizzonte: str) -> pd.DataFrame:
     return dati.scarica(ticker, orizzonte)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _backtest(ticker: str, orizzonte: str):
+    df_bt = dati.scarica(ticker, orizzonte)
+    passo = 4 if "settimanale" in orizzonte else 5
+    return backtest.esegui(df_bt, passo=passo)
 
 
 def _date(df, indici):
@@ -229,8 +236,8 @@ st.markdown(
 )
 st.markdown(f"{v.riassunto}")
 
-tab_sintesi, tab_grafico, tab_dettagli, tab_panoramica = st.tabs(
-    ["Sintesi", "Grafico completo", "Onde e livelli", "Panoramica"])
+tab_sintesi, tab_grafico, tab_dettagli, tab_panoramica, tab_backtest = st.tabs(
+    ["Sintesi", "Grafico completo", "Onde e livelli", "Panoramica", "Backtest"])
 
 with tab_sintesi:
     # ---- Livelli operativi: prezzi concreti su cui ragionare ----
@@ -353,3 +360,50 @@ with tab_panoramica:
         st.dataframe(pd.DataFrame(righe), hide_index=True, width="stretch")
     else:
         st.write("Nessun titolo analizzabile.")
+
+with tab_backtest:
+    st.caption(
+        "Simulazione onesta sul passato: **compra quando il semaforo è verde, esce quando è "
+        "rosso** (il giallo mantiene la posizione). Ogni verdetto è calcolato usando solo i "
+        "dati disponibili fino a quel giorno; il segnale vale dal giorno successivo. "
+        "Senza costi di transazione né tasse: i risultati reali sarebbero un po' inferiori."
+    )
+    chiave_bt = f"bt::{ticker.upper()}::{orizzonte}"
+    if st.button("Esegui il backtest", type="primary"):
+        with st.spinner("Ricalcolo il verdetto settimana per settimana..."):
+            st.session_state[chiave_bt] = _backtest(ticker, orizzonte)
+
+    if chiave_bt in st.session_state:
+        res = st.session_state[chiave_bt]
+        if res is None:
+            st.warning("Storico troppo corto per un backtest sensato su questo orizzonte.")
+        else:
+            b1, b2, b3, b4 = st.columns(4)
+            b1.metric("Semaforo", f"{res.rendimento_strategia:+.1f}%")
+            b2.metric("Comprare e tenere", f"{res.rendimento_benchmark:+.1f}%")
+            b3.metric("Max perdita dal picco", f"{res.drawdown_strategia:.1f}%",
+                      delta=f"vs {res.drawdown_benchmark:.1f}% del tenere", delta_color="off")
+            b4.metric("Operazioni", f"{res.n_operazioni}",
+                      delta=f"investito {res.pct_investito:.0f}% del tempo", delta_color="off")
+
+            fig_bt = go.Figure()
+            fig_bt.add_trace(go.Scatter(x=res.date, y=res.equity_strategia,
+                                        name="Semaforo", line=dict(width=2, color=INK)))
+            fig_bt.add_trace(go.Scatter(x=res.date, y=res.equity_benchmark,
+                                        name="Comprare e tenere", line=dict(width=1.4, color=MUTED)))
+            fig_bt.update_yaxes(title_text="Valore di 100 investiti", title_font=dict(size=11, color=MUTED))
+            st.plotly_chart(_stile_minimal(fig_bt, 380), width="stretch")
+
+            if res.rendimento_strategia >= res.rendimento_benchmark:
+                giudizio = "In questo periodo il semaforo **ha battuto** il semplice comprare e tenere."
+            else:
+                giudizio = ("In questo periodo il semaforo **ha reso meno** del semplice comprare "
+                            "e tenere: su trend molto forti, stare fuori nei momenti incerti costa.")
+            if res.drawdown_strategia > res.drawdown_benchmark:
+                giudizio += " In compenso le perdite massime intermedie sono state più contenute."
+            st.markdown(giudizio)
+            st.caption(
+                f"{res.n_valutazioni} valutazioni (una ogni {res.passo} sedute). "
+                "Il passato non garantisce il futuro: usa questi numeri per capire il "
+                "comportamento dello strumento, non come promessa di rendimento."
+            )
