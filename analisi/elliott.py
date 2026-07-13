@@ -327,22 +327,35 @@ def _conteggi_da_pivot(pivots, close, scala) -> list[Conteggio]:
                 dettagli=det, recente=True, scala=scala, span=span(sub_p), in_corso=True))
 
     # --- Correzioni A-B-C recenti (finestre di 4 pivot) ---
-    for s in range(0, len(pivots) - 3):
+    # Una correzione e' per definizione CONTRO-TENDENZA: serve il pivot precedente
+    # alla finestra (s >= 1) per verificare il contesto. Un A-B-C al rialzo corregge
+    # una discesa: se C supera il massimo da cui la discesa e' partita, il movimento
+    # non e' una correzione ma una nuova spinta (e va letto come impulso, non A-B-C).
+    for s in range(1, len(pivots) - 3):
         sub_p = prezzi[s : s + 4]
         sub_i = indici[s : s + 4]
         if sub_i[-1] != ultimo_pivot:
             continue
+        prec = prezzi[s - 1]  # estremo del movimento che la correzione starebbe correggendo
         for rialzista in (True, False):
             ok, det = _valida_abc(sub_p, rialzista)
             if not ok:
                 continue
+            if rialzista and sub_p[3] >= prec:
+                continue  # zigzag su che fa nuovi massimi: non e' una correzione
+            if not rialzista and sub_p[3] <= prec:
+                continue  # zigzag giu' che fa nuovi minimi: non e' una correzione
             # proporzioni tipiche: C ~ 0.618/1.0/1.618 di A, B ritraccia 38-62% di A
             conf = int(round(100 * (
                 0.6 * _miglior_fib(det["c/a"], [0.618, 1.0, 1.618])
                 + 0.4 * _miglior_fib(det["b/a"], [0.382, 0.5, 0.618])
             )))
-            nota = ("Sembra completarsi una correzione in 3 onde (A-B-C): "
-                    "spesso dopo riparte la tendenza precedente.")
+            if rialzista:
+                nota = ("Rimbalzo in 3 onde (A-B-C) dentro una discesa, che sembra "
+                        "completarsi: essendo contro-tendenza, la discesa potrebbe riprendere.")
+            else:
+                nota = ("Correzione in 3 onde (A-B-C) dentro una salita, che sembra "
+                        "completarsi: la salita di fondo potrebbe riprendere.")
             out.append(Conteggio(
                 tipo="correzione_abc", indici=sub_i, prezzi=sub_p,
                 etichette=["", "A", "B", "C"], confidenza=conf,

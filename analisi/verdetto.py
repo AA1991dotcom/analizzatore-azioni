@@ -124,7 +124,9 @@ def calcola(indic: dict, elliott: dict, fib=None) -> Verdetto:
         elif mig.tipo == "impulso_ribassista":
             ell_score += -1.0 if mig.in_corso else 1.0
         elif mig.tipo == "correzione_abc":
-            ell_score += 0.5 if mig.corr_rialzista else -0.5
+            # un A-B-C al rialzo e' un rimbalzo contro-tendenza dentro una discesa:
+            # il suo completamento suggerisce la ripresa della discesa (e viceversa)
+            ell_score += -0.5 if mig.corr_rialzista else 0.5
         punteggio += 1.5 * peso_ell * ell_score
         affid = "alta" if mig.confidenza >= 60 else ("media" if mig.confidenza >= 40 else "bassa")
         motivazioni.append(

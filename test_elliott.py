@@ -142,6 +142,26 @@ def test_multiscala_produce_piu_scale():
     assert "scale" in res
 
 
+def test_abc_rifiutata_se_fa_nuovi_massimi():
+    # zigzag ascendente che SUPERA il massimo precedente (150): non e' una correzione,
+    # e' una nuova spinta -> l'etichetta A-B-C non deve comparire
+    pivots = [(0, 150.0), (10, 120.0), (20, 140.0), (30, 130.0), (40, 170.0)]
+    close = np.full(41, 170.0)
+    conteggi = elliott._conteggi_da_pivot(pivots, close, scala=0.05)
+    abc = [c for c in conteggi if c.tipo == "correzione_abc"]
+    assert abc == []
+
+
+def test_abc_accettata_se_resta_sotto_il_massimo_precedente():
+    # rimbalzo in 3 onde dentro una discesa: C (140) resta sotto il massimo (150)
+    pivots = [(0, 150.0), (10, 100.0), (20, 130.0), (30, 115.0), (40, 140.0)]
+    close = np.full(41, 140.0)
+    conteggi = elliott._conteggi_da_pivot(pivots, close, scala=0.05)
+    abc = [c for c in conteggi if c.tipo == "correzione_abc"]
+    assert len(abc) == 1
+    assert abc[0].corr_rialzista  # rimbalzo al rialzo (contro-tendenza in una discesa)
+
+
 # --------------------------------------------------------------------------- #
 # Fibonacci
 # --------------------------------------------------------------------------- #
