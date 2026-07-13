@@ -92,7 +92,7 @@ def grafico_semplice(df, indic, m_ell, fib):
     """Vista essenziale: linea del prezzo, media lunga, onde, 3 livelli chiave."""
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=df.index, y=df["Close"], name="Prezzo",
-                             line=dict(width=2, color=BLU)))
+                             line=dict(width=1.8, color=INK)))
     fig.add_trace(go.Scatter(x=df.index, y=indic["sma200"], name="Media 200 giorni",
                              line=dict(width=1.2, color=MUTED)))
     if m_ell is not None:
@@ -211,16 +211,16 @@ m_ell = ell["migliore"] if (
     and ell["migliore"].confidenza >= CONF_MINIMA_ELLIOTT
 ) else None
 
-# ---- Verdetto: card minimal ----
+# ---- Verdetto: card minimal, quadrata ----
 accento = SEMAFORO[v.semaforo]
 st.markdown(
     f"""
-    <div style="border:1px solid rgba(11,11,11,0.10);border-left:4px solid {accento};
-                border-radius:10px;padding:16px 20px;background:#fcfcfb;">
+    <div style="border:1px solid rgba(11,11,11,0.10);border-left:3px solid {accento};
+                padding:16px 20px;background:#fcfcfb;">
         <div style="font-family:{FONT};font-size:12px;color:{MUTED};">
             {ticker.upper()} · {orizzonte} · {df.index[-1].date()}</div>
         <div style="font-family:{FONT};font-size:26px;font-weight:700;color:{INK};">
-            <span style="color:{accento};">●</span> {v.titolo}</div>
+            <span style="color:{accento};font-size:18px;">■</span> {v.titolo}</div>
         <div style="font-family:{FONT};font-size:13px;color:{INK2};">
             Confidenza dei segnali: {v.confidenza}%</div>
     </div>
@@ -229,9 +229,34 @@ st.markdown(
 )
 st.markdown(f"{v.riassunto}")
 
-tab_sintesi, tab_grafico, tab_dettagli = st.tabs(["Sintesi", "Grafico completo", "Onde e livelli"])
+tab_sintesi, tab_grafico, tab_dettagli, tab_panoramica = st.tabs(
+    ["Sintesi", "Grafico completo", "Onde e livelli", "Panoramica"])
 
 with tab_sintesi:
+    # ---- Livelli operativi: prezzi concreti su cui ragionare ----
+    prezzo = indic["ultimi"]["prezzo"]
+    atr_u = indic["ultimi"]["atr"]
+    livelli_fib = []
+    if fib is not None:
+        livelli_fib = sorted(set(fib.ritracciamenti.values()) | set(fib.estensioni.values()))
+    sopra = min((l for l in livelli_fib if l > prezzo), default=None)
+    sotto = max((l for l in livelli_fib if l < prezzo), default=None)
+    stop = prezzo - 2 * atr_u
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Prezzo", f"{prezzo:.2f}")
+    m2.metric("Prossimo livello sopra", f"{sopra:.2f}" if sopra else "—",
+              delta=f"{(sopra/prezzo-1)*100:+.1f}%" if sopra else None)
+    m3.metric("Prossimo livello sotto", f"{sotto:.2f}" if sotto else "—",
+              delta=f"{(sotto/prezzo-1)*100:+.1f}%" if sotto else None, delta_color="inverse")
+    m4.metric("Stop indicativo (2×ATR)", f"{stop:.2f}",
+              delta=f"{(stop/prezzo-1)*100:+.1f}%", delta_color="inverse")
+    st.caption(
+        "I livelli sopra/sotto sono i gradini di Fibonacci più vicini al prezzo; lo stop "
+        "indicativo è una protezione basata sulla volatilità del titolo (2×ATR), non un consiglio."
+    )
+    st.divider()
+
     col_g, col_t = st.columns([3, 2])
     with col_g:
         st.plotly_chart(grafico_semplice(df, indic, m_ell, fib), width="stretch")
@@ -302,3 +327,29 @@ with tab_dettagli:
             st.markdown(f"- {d}")
         st.caption(f"Punteggio complessivo: {v.punteggio}")
         st.write({k: round(val, 3) for k, val in indic["ultimi"].items()})
+
+with tab_panoramica:
+    st.caption("Confronto rapido dei titoli d'esempio sullo stesso orizzonte temporale.")
+    tickers_pan = list(dict.fromkeys([ticker.upper()] + ESEMPI))
+    righe = []
+    with st.spinner("Analizzo i titoli..."):
+        for t in tickers_pan:
+            try:
+                df_t = _scarica(t, orizzonte)
+            except dati.ErroreDati:
+                continue
+            ind_t = indicatori.calcola_tutti(df_t)
+            ell_t = elliott.analizza(df_t)
+            fib_t = fibonacci.calcola(ell_t["pivots"], ind_t["ultimi"]["prezzo"])
+            v_t = verdetto.calcola(ind_t, ell_t, fib_t)
+            righe.append({
+                "Ticker": t,
+                "Giudizio": v_t.titolo,
+                "Confidenza": f"{v_t.confidenza}%",
+                "Prezzo": round(ind_t["ultimi"]["prezzo"], 2),
+                "Tendenza": "rialzo" if ind_t["ultimi"]["prezzo"] > ind_t["ultimi"]["sma200"] else "ribasso",
+            })
+    if righe:
+        st.dataframe(pd.DataFrame(righe), hide_index=True, width="stretch")
+    else:
+        st.write("Nessun titolo analizzabile.")

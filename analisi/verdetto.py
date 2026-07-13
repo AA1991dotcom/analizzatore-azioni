@@ -53,13 +53,13 @@ def calcola(indic: dict, elliott: dict, fib=None) -> Verdetto:
 
     punteggio += peso_trend * trend_score
     if trend_score > 0:
-        dir_trend, freccia = "al rialzo", "📈"
+        dir_trend = "al rialzo"
     elif trend_score < 0:
-        dir_trend, freccia = "al ribasso", "📉"
+        dir_trend = "al ribasso"
     else:
-        dir_trend, freccia = "incerta", "➡️"
+        dir_trend = "incerta"
     motivazioni.append(
-        f"{freccia} **Tendenza di fondo {dir_trend}** e di forza {forza}: "
+        f"**Tendenza di fondo {dir_trend}** e di forza {forza}: "
         f"il prezzo si trova {'sopra' if p > u['sma200'] else 'sotto'} la sua media di lungo periodo."
     )
     tecnici.append(
@@ -80,7 +80,7 @@ def calcola(indic: dict, elliott: dict, fib=None) -> Verdetto:
         extra = " È sceso parecchio e potrebbe esserci un rimbalzo."
     punteggio += mom_score
     slancio = "sta spingendo verso l'alto" if mom_score > 0 else ("sta perdendo forza" if mom_score < 0 else "è stabile")
-    motivazioni.append(f"⚡ **Slancio recente**: il movimento {slancio}.{extra}")
+    motivazioni.append(f"**Slancio recente**: il movimento {slancio}.{extra}")
     tecnici.append(
         f"Momentum: MACD ist. {'>' if u['macd_hist'] > 0 else '<'} 0 ({u['macd_hist']:.2f}), RSI {rsi:.0f}."
     )
@@ -94,7 +94,7 @@ def calcola(indic: dict, elliott: dict, fib=None) -> Verdetto:
         vol = "molto in basso rispetto alla sua oscillazione abituale (potrebbe rimbalzare)"
     else:
         vol = "in una zona normale rispetto alla sua oscillazione abituale"
-    motivazioni.append(f"📊 **Posizione del prezzo**: {vol}.")
+    motivazioni.append(f"**Posizione del prezzo**: {vol}.")
     tecnici.append(f"Bollinger: prezzo {p:.2f}, banda {u['bb_bassa']:.2f}–{u['bb_alta']:.2f}.")
 
     # --- Volume (OBV) ---
@@ -103,7 +103,7 @@ def calcola(indic: dict, elliott: dict, fib=None) -> Verdetto:
     vol_msg = ("confermano il movimento (c'è partecipazione)" if obv_t > 0
                else "non confermano il movimento (poca partecipazione)" if obv_t < 0
                else "sono stabili")
-    motivazioni.append(f"🔊 **Scambi (volumi)**: {vol_msg}.")
+    motivazioni.append(f"**Scambi (volumi)**: {vol_msg}.")
     tecnici.append(f"OBV trend: {obv_t:+.0f}.")
 
     # --- Elliott ---
@@ -111,7 +111,7 @@ def calcola(indic: dict, elliott: dict, fib=None) -> Verdetto:
     if (elliott["stato"] != "ok" or elliott["migliore"] is None
             or elliott["migliore"].confidenza < 30):
         motivazioni.append(
-            "🌊 **Fase del ciclo (onde di Elliott)**: al momento non è leggibile con certezza, "
+            "**Fase del ciclo (onde di Elliott)**: al momento non è leggibile con certezza, "
             "quindi non pesa sul giudizio."
         )
         tecnici.append("Elliott: nessun conteggio valido.")
@@ -130,14 +130,14 @@ def calcola(indic: dict, elliott: dict, fib=None) -> Verdetto:
         punteggio += 1.5 * peso_ell * ell_score
         affid = "alta" if mig.confidenza >= 60 else ("media" if mig.confidenza >= 40 else "bassa")
         motivazioni.append(
-            f"🌊 **Fase del ciclo (onde di Elliott)**: {mig.onda_corrente} (affidabilità {affid})."
+            f"**Fase del ciclo (onde di Elliott)**: {mig.onda_corrente} (affidabilità {affid})."
         )
         tecnici.append(f"Elliott: {mig.tipo}, confidenza {mig.confidenza}%, recente={mig.recente}.")
 
     # --- Fibonacci (livelli sullo swing dominante) ---
     fib_score, fib_nota = fib_mod.segnale_verdetto(fib)
     punteggio += fib_score
-    motivazioni.append("📐 **Livelli di Fibonacci**: " + fib_nota)
+    motivazioni.append("**Livelli di Fibonacci**: " + fib_nota)
     if fib is not None:
         tecnici.append(f"Fibonacci: swing {fib.p0:.2f}->{fib.p1:.2f}, ritracciato {fib.frazione_corrente*100:.0f}%.")
 

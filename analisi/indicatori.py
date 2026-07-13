@@ -241,6 +241,7 @@ def calcola_tutti(df: pd.DataFrame) -> dict:
         "supertrend_dir": ult(serie["supertrend_dir"]),
         "bb_alta": ult(serie["bb_alta"]),
         "bb_bassa": ult(serie["bb_bassa"]),
+        "atr": ult(serie["atr"]),
         "obv_trend": _pendenza(serie["obv"]),
         "ichi_senkou_a": ult(serie["ichi_senkou_a"]),
         "ichi_senkou_b": ult(serie["ichi_senkou_b"]),

@@ -1,6 +1,7 @@
 [theme]
 base = "light"
-primaryColor = "#1a9850"
+primaryColor = "#0b0b0b"
+baseRadius = "none"
 font = "sans serif"
 
 [server]
