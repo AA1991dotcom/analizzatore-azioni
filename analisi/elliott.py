@@ -117,6 +117,37 @@ def trova_pivot(close: np.ndarray, soglia: float) -> list[tuple[int, float]]:
     return pivots
 
 
+def _aggancia_estremi(
+    pivots: list[tuple[int, float]], high: np.ndarray, low: np.ndarray, finestra: int = 3
+) -> list[tuple[int, float]]:
+    """Aggancia ogni pivot all'estremo REALE della barra (High sui massimi, Low sui minimi).
+
+    Il ZigZag lavora sulle chiusure; le onde pero' vanno etichettate sugli estremi
+    veri del prezzo, altrimenti i punti cadono "vicino" ai picchi ma non sui picchi.
+    Deterministico: cerca l'estremo in una finestra fissa attorno al pivot, limitata
+    dai pivot adiacenti per non alterare la struttura.
+    """
+    if len(pivots) < 2:
+        return pivots
+    out: list[tuple[int, float]] = []
+    for k, (i, p) in enumerate(pivots):
+        vicino = pivots[k + 1][1] if k + 1 < len(pivots) else pivots[k - 1][1]
+        e_massimo = p >= vicino
+        lo = pivots[k - 1][0] + 1 if k > 0 else 0
+        hi = pivots[k + 1][0] - 1 if k + 1 < len(pivots) else len(high) - 1
+        lo, hi = max(lo, i - finestra), min(hi, i + finestra)
+        if lo > hi:
+            lo = hi = i
+        seg = high[lo : hi + 1] if e_massimo else low[lo : hi + 1]
+        j = lo + int(np.argmax(seg) if e_massimo else np.argmin(seg))
+        out.append((j, float(high[j] if e_massimo else low[j])))
+    # indici strettamente crescenti: in caso di collisione si tiene il pivot originale
+    for k in range(1, len(out)):
+        if out[k][0] <= out[k - 1][0]:
+            out[k] = pivots[k]
+    return out
+
+
 # --------------------------------------------------------------------------- #
 # 2-3. Validazione delle regole inviolabili di Elliott
 # --------------------------------------------------------------------------- #
@@ -305,7 +336,11 @@ def _conteggi_da_pivot(pivots, close, scala) -> list[Conteggio]:
             ok, det = _valida_abc(sub_p, rialzista)
             if not ok:
                 continue
-            conf = int(round(100 * 0.5 * (_vicinanza(det["c/a"], 1.0) + _vicinanza(det["b/a"], 0.5))))
+            # proporzioni tipiche: C ~ 0.618/1.0/1.618 di A, B ritraccia 38-62% di A
+            conf = int(round(100 * (
+                0.6 * _miglior_fib(det["c/a"], [0.618, 1.0, 1.618])
+                + 0.4 * _miglior_fib(det["b/a"], [0.382, 0.5, 0.618])
+            )))
             nota = ("Sembra completarsi una correzione in 3 onde (A-B-C): "
                     "spesso dopo riparte la tendenza precedente.")
             out.append(Conteggio(
@@ -324,12 +359,14 @@ def _conteggi_da_pivot(pivots, close, scala) -> list[Conteggio]:
 def analizza(df: pd.DataFrame) -> dict:
     """Analisi completa di Elliott su piu' scale. Restituisce stato, conteggi, messaggio."""
     close = df["Close"].to_numpy()
+    high = df["High"].to_numpy()
+    low = df["Low"].to_numpy()
     soglie = scale_soglie(df)
 
     conteggi: list[Conteggio] = []
     pivot_per_scala: dict[float, list] = {}
     for s in soglie:
-        piv = trova_pivot(close, s)
+        piv = _aggancia_estremi(trova_pivot(close, s), high, low)
         pivot_per_scala[s] = piv
         if len(piv) >= 4:
             conteggi.extend(_conteggi_da_pivot(piv, close, s))
@@ -358,8 +395,20 @@ def analizza(df: pd.DataFrame) -> dict:
             unici[chiave] = c
     conteggi = list(unici.values())
 
-    # Ordina: prima i recenti, poi confidenza, poi grado (ampiezza) maggiore.
-    conteggi.sort(key=lambda c: (c.recente, c.confidenza, c.span), reverse=True)
+    # Ordina: prima i recenti, poi i conteggi con confidenza almeno decente (>=30),
+    # infine un punteggio composito che bilancia aderenza a Fibonacci (confidenza)
+    # e GRADO dell'onda (ampiezza normalizzata). Senza il peso del grado vincerebbero
+    # micro-strutture rumorose invece delle grandi onde visibili a occhio nudo; senza
+    # la soglia di confidenza vincerebbe qualunque struttura ampia anche se sballata.
+    span_max = max(c.span for c in conteggi) or 1.0
+    conteggi.sort(
+        key=lambda c: (
+            c.recente,
+            c.confidenza >= 30,
+            0.6 * c.confidenza + 40.0 * (c.span / span_max),
+        ),
+        reverse=True,
+    )
     migliore = conteggi[0]
 
     return {

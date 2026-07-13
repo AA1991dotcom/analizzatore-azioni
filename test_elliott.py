@@ -104,6 +104,35 @@ def test_impulso_rilevato_in_serie_costruita():
     assert "impulso_rialzista" in tipi
 
 
+def test_pivot_agganciati_agli_estremi_reali():
+    # picco sulle chiusure al giorno 30, ma il massimo REALE (High) e' al giorno 31
+    close = np.concatenate([np.linspace(100, 150, 31), np.linspace(148, 100, 30)])
+    df = _df_da_close(close)
+    df.iloc[31, df.columns.get_loc("High")] = 160.0  # spike di High dopo il picco di chiusura
+    pivots = elliott._aggancia_estremi(
+        elliott.trova_pivot(df["Close"].to_numpy(), 0.05),
+        df["High"].to_numpy(), df["Low"].to_numpy(),
+    )
+    prezzi = [p for _, p in pivots]
+    assert 160.0 in prezzi  # il pivot del massimo deve stare sull'estremo vero
+
+
+def test_conteggio_migliore_privilegia_grado_maggiore():
+    # grande impulso a 5 onde + rumore fine sovrapposto: il migliore deve coprire
+    # la struttura grande, non una micro-onda
+    segmenti = [
+        np.linspace(100, 140, 40), np.linspace(140, 120, 20),
+        np.linspace(120, 200, 60), np.linspace(200, 170, 25),
+        np.linspace(170, 230, 40),
+    ]
+    rng = np.random.default_rng(3)
+    close = np.concatenate(segmenti) + rng.normal(0, 1.0, 185)
+    res = elliott.analizza(_df_da_close(close))
+    assert res["stato"] == "ok"
+    span_max = max(c.span for c in res["conteggi"])
+    assert res["migliore"].span >= 0.6 * span_max
+
+
 def test_multiscala_produce_piu_scale():
     rng = np.random.default_rng(11)
     close = 100 + np.cumsum(rng.normal(0.08, 1.0, 600))

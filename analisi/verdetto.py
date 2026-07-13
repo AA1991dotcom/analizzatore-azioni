@@ -107,7 +107,9 @@ def calcola(indic: dict, elliott: dict, fib=None) -> Verdetto:
     tecnici.append(f"OBV trend: {obv_t:+.0f}.")
 
     # --- Elliott ---
-    if elliott["stato"] != "ok" or elliott["migliore"] is None:
+    # sotto questa confidenza il conteggio non e' abbastanza affidabile da pesare
+    if (elliott["stato"] != "ok" or elliott["migliore"] is None
+            or elliott["migliore"].confidenza < 30):
         motivazioni.append(
             "🌊 **Fase del ciclo (onde di Elliott)**: al momento non è leggibile con certezza, "
             "quindi non pesa sul giudizio."
