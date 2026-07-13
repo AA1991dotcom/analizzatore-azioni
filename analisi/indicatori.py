@@ -184,11 +184,18 @@ def obv(df: pd.DataFrame) -> pd.Series:
 # --------------------------------------------------------------------------- #
 # Calcolo aggregato
 # --------------------------------------------------------------------------- #
-def calcola_tutti(df: pd.DataFrame) -> dict:
+def calcola_tutti(df: pd.DataFrame, settimanale: bool = False) -> dict:
     """Calcola tutti gli indicatori e restituisce un dict di Series/valori.
 
     Chiave 'ultimi' contiene gli ultimi valori scalari utili al verdetto.
+
+    settimanale: su candele settimanali le medie di tendenza restano definite in
+    GIORNI di borsa (200 giorni ~ 40 settimane). Senza questa conversione la
+    SMA200 diventerebbe una media di ~4 anni: un filtro inutilmente lento.
+    Gli oscillatori (RSI, MACD, ADX, ATR, Bollinger) restano ai periodi standard,
+    come da prassi sui grafici settimanali.
     """
+    p_ema20, p_sma50, p_sma200 = (4, 10, 40) if settimanale else (20, 50, 200)
     close = df["Close"]
 
     linea_macd, segnale_macd, ist_macd = macd(close)
@@ -201,9 +208,9 @@ def calcola_tutti(df: pd.DataFrame) -> dict:
     obv_ = obv(df)
 
     serie = {
-        "sma50": sma(close, 50),
-        "sma200": sma(close, 200),
-        "ema20": ema(close, 20),
+        "sma50": sma(close, p_sma50),
+        "sma200": sma(close, p_sma200),
+        "ema20": ema(close, p_ema20),
         "macd": linea_macd,
         "macd_signal": segnale_macd,
         "macd_hist": ist_macd,

@@ -44,8 +44,8 @@ def _scarica(ticker: str, orizzonte: str) -> pd.DataFrame:
 @st.cache_data(ttl=3600, show_spinner=False)
 def _backtest(ticker: str, orizzonte: str):
     df_bt = dati.scarica(ticker, orizzonte)
-    passo = 4 if "settimanale" in orizzonte else 5
-    return backtest.esegui(df_bt, passo=passo)
+    sett = "settimanale" in orizzonte
+    return backtest.esegui(df_bt, passo=4 if sett else 5, settimanale=sett)
 
 
 def _date(df, indici):
@@ -204,7 +204,7 @@ except dati.ErroreDati as e:
     st.error(str(e))
     st.stop()
 
-indic = indicatori.calcola_tutti(df)
+indic = indicatori.calcola_tutti(df, settimanale="settimanale" in orizzonte)
 ell = elliott.analizza(df)
 fib = fibonacci.calcola(ell["pivots"], indic["ultimi"]["prezzo"])
 v = verdetto.calcola(indic, ell, fib)
@@ -345,7 +345,7 @@ with tab_panoramica:
                 df_t = _scarica(t, orizzonte)
             except dati.ErroreDati:
                 continue
-            ind_t = indicatori.calcola_tutti(df_t)
+            ind_t = indicatori.calcola_tutti(df_t, settimanale="settimanale" in orizzonte)
             ell_t = elliott.analizza(df_t)
             fib_t = fibonacci.calcola(ell_t["pivots"], ind_t["ultimi"]["prezzo"])
             v_t = verdetto.calcola(ind_t, ell_t, fib_t)
@@ -402,6 +402,16 @@ with tab_backtest:
             if res.drawdown_strategia > res.drawdown_benchmark:
                 giudizio += " In compenso le perdite massime intermedie sono state più contenute."
             st.markdown(giudizio)
+            ratio_s = (res.rendimento_strategia / abs(res.drawdown_strategia)
+                       if res.drawdown_strategia else 0.0)
+            ratio_b = (res.rendimento_benchmark / abs(res.drawdown_benchmark)
+                       if res.drawdown_benchmark else 0.0)
+            st.caption(
+                f"Rendimento per unità di rischio (rendimento / |max perdita|): "
+                f"semaforo **{ratio_s:.2f}** vs tenere **{ratio_b:.2f}**. "
+                "È la misura giusta se le oscillazioni ti pesano: a parità di rischio "
+                "sopportato, chi rende di più?"
+            )
             st.caption(
                 f"{res.n_valutazioni} valutazioni (una ogni {res.passo} sedute). "
                 "Il passato non garantisce il futuro: usa questi numeri per capire il "

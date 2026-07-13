@@ -55,26 +55,30 @@ def equity_da_posizioni(close: np.ndarray, posizioni: np.ndarray) -> np.ndarray:
     return equity
 
 
-def esegui(df: pd.DataFrame, passo: int = 5, avanzamento=None) -> Risultato | None:
+def esegui(df: pd.DataFrame, passo: int = 5, settimanale: bool = False,
+           avanzamento=None) -> Risultato | None:
     """Esegue il backtest walk-forward. Restituisce None se lo storico e' troppo corto.
 
+    settimanale: candele settimanali (medie di tendenza convertite in barre settimanali).
     avanzamento: callback opzionale f(frazione) per la barra di progresso.
     """
     n = len(df)
-    if n < WARMUP + passo * 8:
+    # warm-up: barre necessarie perche' la media lunga sia pronta (40 sett. / 200 gg + margine)
+    warmup = 60 if settimanale else WARMUP
+    if n < warmup + passo * 8:
         return None
     close = df["Close"].to_numpy()
 
     # il passo si allarga da solo se le valutazioni sarebbero troppe
-    passo = max(passo, (n - WARMUP) // MAX_VALUTAZIONI)
-    valutazioni = list(range(WARMUP, n, passo))
+    passo = max(passo, (n - warmup) // MAX_VALUTAZIONI)
+    valutazioni = list(range(warmup, n, passo))
 
     posizioni = np.zeros(n)
     pos = 0.0
     n_operazioni = 0
     for k, t in enumerate(valutazioni):
         sotto = df.iloc[: t + 1]
-        ind = indicatori.calcola_tutti(sotto)
+        ind = indicatori.calcola_tutti(sotto, settimanale=settimanale)
         ell = elliott.analizza(sotto)
         fib = fibonacci.calcola(ell["pivots"], ind["ultimi"]["prezzo"])
         v = verdetto.calcola(ind, ell, fib)
@@ -90,7 +94,7 @@ def esegui(df: pd.DataFrame, passo: int = 5, avanzamento=None) -> Risultato | No
             avanzamento((k + 1) / len(valutazioni))
 
     # confronto equo: entrambe le curve partono dal primo giorno valutabile
-    s = WARMUP
+    s = warmup
     close_bt = close[s:]
     eq_strat = equity_da_posizioni(close_bt, posizioni[s:])
     eq_bench = equity_da_posizioni(close_bt, np.ones(len(close_bt)))

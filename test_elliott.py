@@ -228,3 +228,15 @@ def test_backtest_completo_su_serie_sintetica():
 def test_backtest_storico_corto_restituisce_none():
     close = np.linspace(100, 120, 120)
     assert backtest.esegui(_df_da_close(close)) is None
+
+
+def test_indicatori_settimanali_scalano_le_medie():
+    from analisi import indicatori
+    close = np.linspace(100, 200, 60)
+    df = _df_da_close(close)
+    # settimanale: SMA200 -> 40 barre, definita gia' con 60 barre
+    ind_w = indicatori.calcola_tutti(df, settimanale=True)
+    assert len(ind_w["sma200"].dropna()) > 0
+    # giornaliero: servono 200 barre, con 60 la SMA200 e' tutta NaN
+    ind_d = indicatori.calcola_tutti(df)
+    assert ind_d["sma200"].dropna().empty
